@@ -3,7 +3,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-
 def __plot_band_structure(canvas, 
                           kpts, bands,
                           fermi_level=0.0, 
@@ -55,7 +54,9 @@ def momentum_resolved_spectral_function(e_k, mu, Sigma_w, broadening = 0.1j):
     return A_kw
 
 
-from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
+from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
+from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_imtime, fit_gf_dlr, inverse
+from triqs.gf.dlr_crm_dyson_solver import minimize_dyson
 from triqs.gf.tools import make_zero_tail
 from triqs.operators import c_dag, c
 from triqs_cthyb import Solver
@@ -79,7 +80,53 @@ def matrix_to_many_body_operator(h_loc_matrix, gf_struct):
     c_vec      = {block : np.matrix([[c(block, o) for o in range(bl_size)]]) for block, bl_size in gf_struct }
     return sum(c_dag_vec[block]*h_loc0_mat[block]*c_vec[block] for block, bl_size in gf_struct)[0,0]
 
-def solve(Delta_iw, h_loc0, h_int, **solver_params):
+
+def solve_dlr_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
+
+    gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
+    h_loc0 = matrix_to_many_body_operator(h_loc0, gf_struct)
+
+    w_max = Delta_iw.mesh.w_max
+    eps   = Delta_iw.mesh.eps
+    
+    beta  = Delta_iw.mesh.beta
+    n_iw = n_iw if n_iw is not None else 1025
+    n_tau = 10*n_iw
+
+    solver_params['measure_density_matrix'] = True
+    solver_params['use_norm_as_weight']     = True
+
+    S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, delta_interface=True)
+
+    for block, delta in S.Delta_tau: 
+        S.Delta_tau[block] << make_gf_imtime(make_gf_dlr(Delta_iw[block]), n_tau)
+        
+    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_params)
+
+    G_dlr  = fit_gf_dlr(S.G_tau, w_max, eps)
+    G0_iw  = inverse(S.Sigma_iw + inverse(S.G_iw))
+    G0_dlr = fit_gf_dlr(make_gf_from_fourier(G0_iw), w_max, eps)
+    Sigma_dlr, Sigma_hartree, err = minimize_dyson(G0_dlr, G_dlr, S.Sigma_moments)
+
+    return SolverResults(G_iw = S.G_iw,
+                         G_tau = S.G_tau, 
+                         Sigma_Hartree = list(S.Sigma_Hartree.values()), 
+                         Sigma_iw = S.Sigma_iw,
+                         Sigma_dynamic = Sigma_dlr,
+                         Sigma_iw_raw = S.Sigma_iw_raw, 
+                         Sigma_moments = S.Sigma_moments,
+                         auto_corr_time =  S.auto_corr_time, 
+                         average_order = S.average_order, 
+                         average_sign = S.average_sign, 
+                         density_matrix = S.density_matrix,
+                         h_loc_diagonalization = S.h_loc_diagonalization, 
+                         orbital_occupations = S.orbital_occupations, 
+                         performance_analysis = S.performance_analysis, 
+                         perturbation_order = S.perturbation_order, 
+                         perturbation_order_total = S.perturbation_order_total,
+                        )
+
+def solve_full_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
     
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
     h_loc0 = matrix_to_many_body_operator(h_loc0, gf_struct)
@@ -105,29 +152,12 @@ def solve(Delta_iw, h_loc0, h_int, **solver_params):
     Sigma_dynamic = S.Sigma_iw.copy()
     for bl, g in Sigma_dynamic: Sigma_dynamic[bl] << g - S.Sigma_Hartree[bl]
     
-    return SolverResults(#Delta_tau   = S.Delta_tau, 
-                         G_iw = S.G_iw,
-                         #G_iw_raw = S.G_iw_raw,                      
-                         #G_moments = S.G_moments,
+    return SolverResults(G_iw = S.G_iw,
                          G_tau = S.G_tau, 
-                         #G_tau_accum = S.G_tau_accum, 
-                         #G_l = S.G_l,                  
                          Sigma_Hartree = list(S.Sigma_Hartree.values()), 
                          Sigma_iw = S.Sigma_iw,
                          Sigma_dynamic = Sigma_dynamic,
-                         #Sigma_iw_raw = S.Sigma_iw_raw, 
                          Sigma_moments = S.Sigma_moments,
-                         #O_tau = S.O_tau,    
-                         #G2_iw = S.G2_iw, 
-                         #G2_iw_nfft = S.G2_iw_nfft, 
-                         #G2_iw_ph = S.G2_iw_ph, 
-                         #G2_iw_ph_nfft = S.G2_iw_ph_nfft, 
-                         #G2_iw_pp = S.G2_iw_pp,
-                         #G2_iw_pp_nfft = S.G2_iw_pp_nfft, 
-                         #G2_iwll_ph = S.G2_iwll_ph, 
-                         #G2_iwll_pp = S.G2_iwll_pp,
-                         #G2_tau = S.G2_tau, 
-                         #asymmetry_G_tau = S.asymmetry_G_tau,
                          auto_corr_time =  S.auto_corr_time, 
                          average_order = S.average_order, 
                          average_sign = S.average_sign, 
@@ -138,3 +168,9 @@ def solve(Delta_iw, h_loc0, h_int, **solver_params):
                          perturbation_order = S.perturbation_order, 
                          perturbation_order_total = S.perturbation_order_total,
                         )
+
+def solve(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
+    if isinstance(Delta_iw.mesh, MeshImFreq):      return solve_full_mesh(Delta_iw, h_loc0, h_int, n_iw=n_iw, **solver_params)
+    elif isinstance(Delta_iw.mesh, MeshDLRImFreq): return solve_dlr_mesh(Delta_iw, h_loc0, h_int, n_iw=n_iw, **solver_params)
+    else:
+        raise NotImplemented
