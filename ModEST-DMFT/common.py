@@ -25,7 +25,7 @@ def __plot_bands(canvas, kpts, bands, **kwargs):
 
 def __plot_spectral_function(canvas, Akw, k_lin, k_ticks, k_labels, **kwargs):
     
-    data = canvas.imshow(A_kw.T.real, origin='lower', 
+    data = canvas.imshow(Akw.T.real, origin='lower', 
                       aspect='auto', 
                       extent=(min(k_lin), max(k_lin), -10,10),
                       **kwargs
@@ -49,17 +49,37 @@ def momentum_resolved_spectral_function(e_k, mu, Sigma_w, broadening = 0.1j):
     A_kw  = np.zeros((n_kpts, n_ws))
     omegas = np.fromiter(Sigma_w.mesh, float)
     for ik in range(n_kpts):
-        A_kw[ik, :] = -(1/np.pi)*np.linalg.inv((omegas[:, None, None] + mu + broadening - ek[ik,None, None] 
+        A_kw[ik, :] = -(1/np.pi)*np.linalg.inv((omegas[:, None, None] + mu + broadening - e_k[ik,None, None] 
                          - Sigma_w.data[:])).trace(axis1=1,axis2=2).imag
     return A_kw
 
 
 from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
-from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_imtime, fit_gf_dlr, inverse
+from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_dlr_imfreq, make_gf_imtime, fit_gf_dlr, inverse, iOmega_n
 from triqs.gf.dlr_crm_dyson_solver import minimize_dyson
 from triqs.gf.tools import make_zero_tail
 from triqs.operators import c_dag, c
 from triqs_cthyb import Solver
+
+class SmartList:
+    def __init__(self, **kwargs): self._data = { key : val for key, val in kwargs.items() }
+
+    def __values(self): return list(self._data.values())
+
+    def __getitem__(self, key):
+        if isinstance(key, int): return self.__values()[key]
+        if isinstance(key, str): return self._data[key]
+
+    def __getattr__(self, key):
+        try: return self._data[key]
+        except KeyError: raise AttributeError(f"SmartList has no property {key}")
+
+    def __iter__(self): return iter(self.__values())
+
+    def __repr__(self): return repr(self._data)
+    __str__ = __repr__
+
+    def to_vector(self): return self.__values()
 
 class SolverResults(dict):
     def __init__(self, **kwargs):
@@ -81,40 +101,39 @@ def matrix_to_many_body_operator(h_loc_matrix, gf_struct):
     return sum(c_dag_vec[block]*h_loc0_mat[block]*c_vec[block] for block, bl_size in gf_struct)[0,0]
 
 
-def solve_dlr_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
+def solve_dlr_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
 
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
-    h_loc0 = matrix_to_many_body_operator(h_loc0, gf_struct)
+    h_loc0 = matrix_to_many_body_operator(h_loc0_bl_mat, gf_struct)
 
+    beta  = Delta_iw.mesh.beta
     w_max = Delta_iw.mesh.w_max
     eps   = Delta_iw.mesh.eps
-    
-    beta  = Delta_iw.mesh.beta
-    n_iw = n_iw if n_iw is not None else 1025
-    n_tau = 10*n_iw
 
-    solver_params['measure_density_matrix'] = True
-    solver_params['use_norm_as_weight']     = True
+    n_iw = solver_interface_params.pop('n_iw', 1025)
+    n_tau = solver_interface_params.pop('n_tau', 10001)
+    n_l   = solver_interface_params.pop('n_l', 40)
+    solver_interface_params['measure_density_matrix'] = True
+    solver_interface_params['use_norm_as_weight']     = True
 
-    S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, delta_interface=True)
+    S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, n_l = n_l, delta_interface=True)
 
-    for block, delta in S.Delta_tau: 
-        S.Delta_tau[block] << make_gf_imtime(make_gf_dlr(Delta_iw[block]), n_tau)
+    S.Delta_tau << make_gf_imtime(Delta_iw, n_tau)
         
-    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_params)
+    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
 
-    G_dlr  = fit_gf_dlr(S.G_tau, w_max, eps)
-    G0_iw  = inverse(S.Sigma_iw + inverse(S.G_iw))
-    G0_dlr = fit_gf_dlr(make_gf_from_fourier(G0_iw), w_max, eps)
-    Sigma_dlr, Sigma_hartree, err = minimize_dyson(G0_dlr, G_dlr, S.Sigma_moments)
+    G_iw_dlr  = make_gf_dlr_imfreq(fit_gf_dlr(S.G_tau, w_max, eps))
+    G0_iw_dlr = Delta_iw.copy()
+    for idx, (bl, g) in enumerate(G0_iw_dlr): G0_iw_dlr[bl] << inverse(iOmega_n - h_loc0_bl_mat[idx])
+    Sigma_dlr, Sigma_hartree, err = minimize_dyson(G0_iw_dlr, G_iw_dlr, S.Sigma_moments)
 
     return SolverResults(G_iw = S.G_iw,
                          G_tau = S.G_tau, 
-                         Sigma_Hartree = list(S.Sigma_Hartree.values()), 
+                         Sigma_Hartree = SmartList(**S.Sigma_Hartree),
                          Sigma_iw = S.Sigma_iw,
                          Sigma_dynamic = Sigma_dlr,
                          Sigma_iw_raw = S.Sigma_iw_raw, 
-                         Sigma_moments = S.Sigma_moments,
+                         Sigma_moments = SmartList(**S.Sigma_moments),
                          auto_corr_time =  S.auto_corr_time, 
                          average_order = S.average_order, 
                          average_sign = S.average_sign, 
@@ -126,38 +145,39 @@ def solve_dlr_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
                          perturbation_order_total = S.perturbation_order_total,
                         )
 
-def solve_full_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
+def solve_full_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
     
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
-    h_loc0 = matrix_to_many_body_operator(h_loc0, gf_struct)
+    h_loc0 = matrix_to_many_body_operator(h_loc0_bl_mat, gf_struct)
     
     beta  = Delta_iw.mesh.beta
     n_iw = len(Delta_iw.mesh) // 2
-    n_tau = 10*n_iw
+    solver_interface_params.pop('n_iw', None)
 
-    solver_params['measure_density_matrix'] = True
-    solver_params['use_norm_as_weight']     = True
+    n_tau = solver_interface_params.pop('n_tau', 10001)
+    n_l   = solver_interface_params.pop('n_l', 40)
+    solver_interface_params['measure_density_matrix'] = True
+    solver_interface_params['use_norm_as_weight']     = True
 
-    S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, delta_interface=True)
+    S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, n_l = n_l, delta_interface=True)
 
     for block, delta in S.Delta_tau:
         S.Delta_tau[block] << make_gf_from_fourier(
             Delta_iw[block],                                          # Δ(iω)
             S.Delta_tau[block].mesh,                                  # time mesh
-            fit_hermitian_tail(Delta_iw[block], 
-                               make_zero_tail(Delta_iw[block], 1))[0] # tail
+            fit_hermitian_tail(Delta_iw[block], make_zero_tail(Delta_iw[block], 1))[0] # tail
             )
         
-    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_params)
+    S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
     Sigma_dynamic = S.Sigma_iw.copy()
     for bl, g in Sigma_dynamic: Sigma_dynamic[bl] << g - S.Sigma_Hartree[bl]
     
     return SolverResults(G_iw = S.G_iw,
                          G_tau = S.G_tau, 
-                         Sigma_Hartree = list(S.Sigma_Hartree.values()), 
+                         Sigma_Hartree = SmartList(**S.Sigma_Hartree),
                          Sigma_iw = S.Sigma_iw,
                          Sigma_dynamic = Sigma_dynamic,
-                         Sigma_moments = S.Sigma_moments,
+                         Sigma_moments = SmartList(**S.Sigma_moments),
                          auto_corr_time =  S.auto_corr_time, 
                          average_order = S.average_order, 
                          average_sign = S.average_sign, 
@@ -169,8 +189,7 @@ def solve_full_mesh(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
                          perturbation_order_total = S.perturbation_order_total,
                         )
 
-def solve(Delta_iw, h_loc0, h_int, n_iw=None, **solver_params):
-    if isinstance(Delta_iw.mesh, MeshImFreq):      return solve_full_mesh(Delta_iw, h_loc0, h_int, n_iw=n_iw, **solver_params)
-    elif isinstance(Delta_iw.mesh, MeshDLRImFreq): return solve_dlr_mesh(Delta_iw, h_loc0, h_int, n_iw=n_iw, **solver_params)
-    else:
-        raise NotImplemented
+def solve(Delta_iw, h_loc0, h_int, **solver_params):
+    if isinstance(Delta_iw.mesh, MeshImFreq):      return solve_full_mesh(Delta_iw, h_loc0, h_int, **solver_params)
+    elif isinstance(Delta_iw.mesh, MeshDLRImFreq): return solve_dlr_mesh(Delta_iw, h_loc0, h_int,  **solver_params)
+    else:                                          raise  NotImplemented
