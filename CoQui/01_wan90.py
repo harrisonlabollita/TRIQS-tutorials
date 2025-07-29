@@ -7,8 +7,8 @@ coqui.set_verbosity(coqui_mpi, output_level=1)
 
 # 1) Build a mean-field handle from existing QE outputs
 params = {
-  "prefix": "sto",                    # QE prefix (matches {prefix}.save)
-  "outdir": "data/qe_inputs/svo/222", # QE outdir containing {prefix}.save/
+  "prefix": "svo",                    # QE prefix (matches {prefix}.save)
+  "outdir": "data/qe_inputs/svo/222/out", # QE outdir containing {prefix}.save/
   "nbnd": 40                          # number of bands read from QE outputs
 }
 mf = coqui.make_mf(coqui_mpi, params=params, mf_type="qe")
