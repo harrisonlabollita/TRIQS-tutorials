@@ -125,7 +125,7 @@ def solve_dlr_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
 
     G_iw_dlr  = make_gf_dlr_imfreq(fit_gf_dlr(S.G_tau, w_max, eps))
     G0_iw_dlr = Delta_iw.copy()
-    for idx, (bl, g) in enumerate(G0_iw_dlr): G0_iw_dlr[bl] << inverse(iOmega_n - h_loc0_bl_mat[idx])
+    for idx, (bl, g) in enumerate(G0_iw_dlr): G0_iw_dlr[bl] << inverse(iOmega_n - h_loc0_bl_mat[idx] - Delta_iw[bl])
     Sigma_dlr, Sigma_hartree, err = minimize_dyson(G0_iw_dlr, G_iw_dlr, S.Sigma_moments)
 
     Sigma_iw = make_gf_imfreq(Sigma_dlr, n_iw)

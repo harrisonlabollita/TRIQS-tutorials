@@ -1,6 +1,6 @@
 import numpy as np 
-from common import *
-import bzsummation as modest
+from utils.solvers import solve
+import triqs_modest as modest
 from triqs.gf import MeshImFreq, MeshDLRImFreq
 from triqs.operators import n
 from triqs.plot.mpl_interface import oplot
@@ -17,7 +17,7 @@ mesh = MeshDLRImFreq(beta, statistic='Fermion', w_max = 5, eps=1e-6) # Matsubara
 
 U = 3.6
 h_int = U*n('up_0',0)*n('down_0',0)
-solver_params = dict(n_iw=251, n_tau=2510, length_cycle=60, n_cycles = int(2e+6), n_warmup_cycles = int(1e+4), 
+solver_params = dict(n_iw=251, n_tau=2510, length_cycle=80, n_cycles = int(5e+5), n_warmup_cycles = int(1e+3), 
                      #perform_tail_fit=True, fit_min_w=6, fit_max_w=10, 
                      imag_threshold = 1e-6)
 
@@ -32,7 +32,7 @@ Gloc = E.extract(modest.gloc(mesh, obe, mu))[0]
 Delta_iw = modest.extract_delta(hloc0, Gloc)
 
 
-n_dmft_loops = 1
+n_dmft_loops = 10
 for n_iter in range(n_dmft_loops):
     print(f"DMFT iteration= {n_iter}")
 
