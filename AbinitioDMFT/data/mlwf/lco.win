@@ -32,6 +32,7 @@ bands_plot = true
 bands_num_points = 100
 bands_plot_format = gnuplot
 write_hr = true
+write_tb = true
 write_u_matrices = true
 
 ! disentanglement
