@@ -1,5 +1,5 @@
 import numpy as np
-from triqs.gf import MeshImFreq, Gf, BlockGf, Block2Gf, MeshDLRImFreq, MeshImFreq, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
+from triqs.gf import MeshImFreq, MeshDLRImFreq, BlockGf, Block2Gf, Gf, make_gf_from_fourier, fit_hermitian_tail, make_hermitian
 from triqs.gf import make_gf_dlr, make_gf_imfreq, make_gf_dlr_imfreq, make_gf_imtime, fit_gf_dlr, inverse, iOmega_n
 from triqs.gf.dlr_crm_dyson_solver import minimize_dyson
 from triqs.gf.tools import make_zero_tail
