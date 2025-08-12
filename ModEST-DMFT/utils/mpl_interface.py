@@ -3,13 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-def __plot_band_structure(canvas, 
+def __plot_band_structure(canvas,
                           kpts, bands,
-                          fermi_level=0.0, 
+                          fermi_level=0.0,
                           high_symm_points= None,
                           high_symm_labels= None
                          ):
-    
+
     for b in range(len(bands)): canvas.plot(kpts, bands[b, :]-fermi_level, 'k-', lw=1)
     if high_symm_points:
         for k in high_symm_points: canvas.axvline(k, color='k', ls='dotted', lw=0.5)
@@ -24,9 +24,9 @@ def __plot_bands(canvas, kpts, bands, **kwargs):
     for b in range(len(bands)): canvas.plot(kpts, bands[b, :], '-', **kwargs)
 
 def __plot_spectral_function(canvas, Akw, k_lin, k_ticks, k_labels, **kwargs):
-    
-    data = canvas.imshow(Akw.T.real, origin='lower', 
-                      aspect='auto', 
+
+    data = canvas.imshow(Akw.T.real, origin='lower',
+                      aspect='auto',
                       extent=(min(k_lin), max(k_lin), -10,10),
                       **kwargs
                      )
@@ -37,7 +37,7 @@ def __plot_spectral_function(canvas, Akw, k_lin, k_ticks, k_labels, **kwargs):
     canvas.tick_params(axis='x', which='both', length=0)
     canvas.tick_params(axis='y', which='both', direction='out')
 
-        
+
 mpl.axes.Axes.plot_band_structure = lambda self, kpts, bands, **kwargs: __plot_band_structure(self, kpts, bands, **kwargs)
 mpl.axes.Axes.plot_bands = lambda self, kpts, bands, **kwargs: __plot_bands(self, kpts, bands, **kwargs)
 mpl.axes.Axes.plot_spectral_function = lambda self, Akw, k_lin, k_ticks, k_labels, **kwargs : __plot_spectral_function(self, Akw, k_lin, k_ticks, k_labels, **kwargs)

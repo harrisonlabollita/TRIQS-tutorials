@@ -30,14 +30,14 @@ class SmartList(list):
 class SolverResults(dict):
     def __init__(self, **kwargs):
         super().__init__(kwargs)
-    def __getattr__(self, key): 
+    def __getattr__(self, key):
         try:
             return self[key]
         except KeyError:
             raise AttributeError(f"SolverResults has no property {key}")
     def __repr__(self):
         return "\n".join([f"{key:<12}" for key in self.keys() ])
-        
+
     __str__ = __repr__
 
 def matrix_to_many_body_operator(h_loc_matrix, gf_struct):
@@ -65,7 +65,7 @@ def solve_dlr_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
     S = Solver(gf_struct=gf_struct, beta=beta, n_iw=n_iw, n_tau=n_tau, n_l = n_l, delta_interface=True)
 
     S.Delta_tau << make_gf_imtime(Delta_iw, n_tau)
-        
+
     S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
 
     G_iw_dlr  = make_gf_dlr_imfreq(fit_gf_dlr(S.G_tau, w_max, eps))
@@ -78,28 +78,28 @@ def solve_dlr_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
         g += S.Sigma_moments[block][0]
 
     return SolverResults(G_iw = S.G_iw,
-                         G_tau = S.G_tau, 
+                         G_tau = S.G_tau,
                          Sigma_Hartree = S.Sigma_Hartree.values(), #SmartList(**S.Sigma_Hartree),
                          Sigma_iw = Sigma_iw,
                          Sigma_dynamic = Sigma_dlr,
-                         Sigma_iw_raw = S.Sigma_iw_raw, 
+                         Sigma_iw_raw = S.Sigma_iw_raw,
                          Sigma_moments = SmartList(**S.Sigma_moments),
-                         auto_corr_time =  S.auto_corr_time, 
-                         average_order = S.average_order, 
-                         average_sign = S.average_sign, 
+                         auto_corr_time =  S.auto_corr_time,
+                         average_order = S.average_order,
+                         average_sign = S.average_sign,
                          density_matrix = S.density_matrix,
-                         h_loc_diagonalization = S.h_loc_diagonalization, 
-                         orbital_occupations = S.orbital_occupations, 
-                         performance_analysis = S.performance_analysis, 
-                         perturbation_order = S.perturbation_order, 
+                         h_loc_diagonalization = S.h_loc_diagonalization,
+                         orbital_occupations = S.orbital_occupations,
+                         performance_analysis = S.performance_analysis,
+                         perturbation_order = S.perturbation_order,
                          perturbation_order_total = S.perturbation_order_total,
                         )
 
 def solve_full_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
-    
+
     gf_struct = [(bl, gf.target_shape[0]) for (bl, gf) in Delta_iw]
     h_loc0 = matrix_to_many_body_operator(h_loc0_bl_mat, gf_struct)
-    
+
     beta  = Delta_iw.mesh.beta
     n_iw = len(Delta_iw.mesh) // 2
     solver_interface_params.pop('n_iw', None)
@@ -117,25 +117,25 @@ def solve_full_mesh(Delta_iw, h_loc0_bl_mat, h_int, **solver_interface_params):
             S.Delta_tau[block].mesh,                                  # time mesh
             fit_hermitian_tail(Delta_iw[block], make_zero_tail(Delta_iw[block], 1))[0] # tail
             )
-        
+
     S.solve(h_loc0=h_loc0, h_int=h_int, **solver_interface_params)
     Sigma_dynamic = S.Sigma_iw.copy()
     for bl, g in Sigma_dynamic: Sigma_dynamic[bl] << g - S.Sigma_Hartree[bl]
-    
+
     return SolverResults(G_iw = S.G_iw,
-                         G_tau = S.G_tau, 
+                         G_tau = S.G_tau,
                          Sigma_Hartree = list(S.Sigma_Hartree.values()), #SmartList(**S.Sigma_Hartree),
                          Sigma_iw = S.Sigma_iw,
                          Sigma_dynamic = Sigma_dynamic,
                          Sigma_moments = S.Sigma_moments,
-                         auto_corr_time =  S.auto_corr_time, 
-                         average_order = S.average_order, 
-                         average_sign = S.average_sign, 
+                         auto_corr_time =  S.auto_corr_time,
+                         average_order = S.average_order,
+                         average_sign = S.average_sign,
                          density_matrix = S.density_matrix,
-                         h_loc_diagonalization = S.h_loc_diagonalization, 
-                         orbital_occupations = S.orbital_occupations, 
-                         performance_analysis = S.performance_analysis, 
-                         perturbation_order = S.perturbation_order, 
+                         h_loc_diagonalization = S.h_loc_diagonalization,
+                         orbital_occupations = S.orbital_occupations,
+                         performance_analysis = S.performance_analysis,
+                         perturbation_order = S.perturbation_order,
                          perturbation_order_total = S.perturbation_order_total,
                         )
 
