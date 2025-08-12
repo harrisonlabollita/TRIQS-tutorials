@@ -2,5 +2,5 @@
    prefix  = 'lco',
    outdir  = '../tmp/',
    filband = 'lco_bands.dat'
-!   lsym    = .false., 
+   lsym    = .true.,
 /
