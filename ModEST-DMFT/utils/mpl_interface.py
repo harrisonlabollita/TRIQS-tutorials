@@ -48,7 +48,8 @@ def momentum_resolved_spectral_function(e_k, mu, Sigma_w, broadening = 0.1j):
     n_ws    = len(Sigma_w.mesh)
     A_kw  = np.zeros((n_kpts, n_ws))
     omegas = np.fromiter(Sigma_w.mesh, float)
+    Id = np.eye(e_k.shape[-1])
     for ik in range(n_kpts):
-        A_kw[ik, :] = -(1/np.pi)*np.linalg.inv((omegas[:, None, None] + mu + broadening - e_k[ik,None, None]
-                         - Sigma_w.data[:])).trace(axis1=1,axis2=2).imag
+        A_kw[ik, :] = -(1/np.pi)*np.linalg.inv(( omegas[:,None,None] + (mu + broadening)*Id - e_k[ik] - Sigma_w.data[:])
+                                          ).trace(axis1=1,axis2=2).imag
     return A_kw
