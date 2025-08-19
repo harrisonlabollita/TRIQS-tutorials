@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 
-def plot_band_structure(kpts, bands,
+def plot_band_structure(kpts, bands, orb_char=None, orb_char_color="blue",
                         fermi_level=0.0, 
                         high_symm_points= None,
                         high_symm_labels= None,
@@ -11,7 +11,10 @@ def plot_band_structure(kpts, bands,
                          ):
     axes = plt.gca() if not axes else axes
     
-    for b in range(len(bands)): axes.plot(kpts, bands[b, :]-fermi_level, 'k-', lw=1)
+    for b in range(len(bands)):
+        axes.plot(kpts, bands[b, :]-fermi_level, 'k-', lw=1);
+        if orb_char is not None: axes.fill_between(kpts, bands[b, :]-fermi_level+orb_char[b, :], bands[b, :]-fermi_level-orb_char[b, :],
+                                                   color=orb_char_color, lw=1)
     if high_symm_points:
         for k in high_symm_points: axes.axvline(k, color='k', ls='dotted', lw=0.5)
     axes.axhline(0.0 if fermi_level != 0 else fermi_level, color='k', ls='dotted', lw=0.5)

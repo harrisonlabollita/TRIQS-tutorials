@@ -1,0 +1,10 @@
+ &projwfc
+    outdir='../tmp/'
+    prefix='lco'
+    ngauss=0, degauss=0.036748
+    DeltaE=0.01
+    kresolveddos=.false.
+    filpdos='lco.k'
+    lsym = .TRUE.,
+    filproj = 'lco.proj.dat'
+/
